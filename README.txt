@@ -262,6 +262,20 @@ UI flow and required-field validation.
 
 BEFORE A GOOGLE PLAY RELEASE
 ---------------------------
+Status on 13 October 2026:
+- Version 0.3.1 (code 4) is published to the internal-testing track and available
+  to the owner-only tester list. This is NOT a public production release.
+- Internal test invitation: https://play.google.com/apps/internaltest/4701482431062080335
+  Open it using an approved tester account, accept the invite, then install
+  through Google Play. Until review, Play may show the temporary name
+  "com.namansingla.serviceledger (unreviewed)".
+- The privacy policy is live on GitHub Pages and linked in the app. Its URL is
+  saved in Play Console; the store-listing change still needs review.
+- Public release requires completing the store listing and app-content
+  declarations, running a closed test with at least 12 opted-in testers for
+  14 continuous days, and obtaining production access. Internal testing does
+  not count toward this closed-test requirement.
+
 1. The chosen app name is Service Ledger; the permanent production applicationId
    is com.namansingla.serviceledger. Debug retains dev.serviceledger.app.debug.
 2. Test on your physical phone and pilot technicians' devices, including:

@@ -15,6 +15,13 @@ PASS: Missing signing credentials explicitly reject :app:bundleRelease via
 PASS: jarsigner verifies the AAB signature. It reports self-signed certificate,
   timestamp and ZIP/JarInputStream-order advisories; Android upload certificates
   are self-signed, and Play Console must independently validate the upload.
+PASS: Play Console accepted bundle 4 (0.3.1), API 26+, target SDK 36, and reports
+  the internal-testing release as "Available to internal testers". Only the
+  owner tester list is selected. The invitation page loads for that account.
+  One non-blocking warning remains: native debug symbols were not uploaded.
+PASS: GitHub Pages deployment succeeded. The public policy returns HTTP 200,
+  with the correct developer, contact address and production package identity.
+  Its URL is saved in Play Console, pending store-listing review.
 
 Signing material is outside the repository under
 %LOCALAPPDATA%\ServiceLedger\signing. Its password is Windows-DPAPI protected.
