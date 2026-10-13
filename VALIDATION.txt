@@ -1,0 +1,95 @@
+SERVICE LEDGER - VALIDATION RESULTS
+===================================
+Version 0.2.0, executed on 13 October 2026.
+Build outputs: %LOCALAPPDATA%\ServiceLedger\build\app (outside OneDrive).
+
+BUILD AND AUTOMATED TESTS
+------------------------
+PASS: Gradle :app:testDebugUnitTest
+  BackupCodecTest:       15 tests, 0 failures, 0 errors, 0 skipped.
+  ContactImportTest:     4 tests, 0 failures, 0 errors, 0 skipped.
+  LedgerRepositoryTest:  8 tests, 0 failures, 0 errors, 0 skipped.
+  LedgerRulesTest:       14 tests, 0 failures, 0 errors, 0 skipped.
+  MigrationTest:         2 tests, 0 failures, 0 errors, 0 skipped.
+  PhotoStoreTest:        3 tests, 0 failures, 0 errors, 0 skipped.
+  RecordInputsTest:      5 tests, 0 failures, 0 errors, 0 skipped.
+  Total:                51 passing JVM / Robolectric tests.
+
+  Additional checks include:
+  - INR 100 charged and INR 50 received shows INR 50 pending, including UI
+    and shared text; overpayments are rejected.
+  - Schema 1 -> 2 migration preserves records and old paid/unpaid meaning on
+    API 26 and API 35, validates the new schema, and preserves cascades.
+  - Legacy SLBACK01 encrypted backups remain readable.
+  - Contact import queries only the chosen phone row on API 26 and API 35.
+  - Native Android bitmap processing rotates/scales a photo, strips EXIF/GPS,
+    preserves a private copy after the source is deleted, and restores the
+    image from an encrypted backup.
+  - Calendar selection and clearing work without typing; timestamp conversion
+    is stable across time zones.
+
+PASS: Gradle :app:lintDebug
+  No lint errors. Advisory findings remain: available dependency/tool updates,
+  KSP migration advice, state boxing/style suggestions, pluralization and
+  unused resources. SharedPreferences KTX suggestions are not applied because
+  the implementation intentionally checks the boolean commit() result.
+
+PASS: Gradle :app:assembleDebug and :app:assembleDebugAndroidTest
+  Installable versionCode 2 / versionName 0.2.0-debug APK generated.
+  APK verification confirms its signing certificate matches the previous
+  0.1.0 debug APK, enabling an in-place update without uninstalling.
+
+PASS: Gradle :app:bundleRelease
+  R8-optimized version 0.2.0 release bundle built successfully. Release signing
+  remains unconfigured; it is not ready for a production upload.
+
+NOT RERUN FOR 0.2.0: Gradle :app:connectedDebugAndroidTest
+  Instrumentation test sources have been updated and compile successfully.
+  No emulator was reinstalled; no physical phone was connected for this run.
+  For version 0.1.0, three instrumented tests passed on an isolated Pixel 6 Android 15 / API 35
+  x86_64 emulator using WHPX acceleration:
+  - Customer -> appliance -> service -> due-follow-up workflow, including
+    Activity recreation after saving the customer.
+  - Required customer-name validation.
+  - Android-runtime encrypted backup/file restoration, database close/reopen,
+    and wrong-password rejection without altering restored records.
+
+EARLIER VERSION 0.1.0 EMULATOR CHECKS
+------------------------------------
+- Installed the debug APK independently after the instrumentation runner
+  removed its test installations.
+- Confirmed the follow-up screen loads and visually inspected its screenshot.
+- Exercised actual Android DocumentsUI create/open-document flows:
+  created an encrypted empty-ledger backup in Downloads, verified a non-empty
+  118-byte file and a successful-backup timestamp, then restored it through
+  the password/replace-confirmation screen. Restore cleared the timestamp.
+- These Downloads checks verify local document-provider integration, not
+  Google Drive synchronization or off-device disaster recovery.
+- Inspected APK permissions with aapt: no INTERNET, contacts, location or broad
+  storage permission. WorkManager contributes network-state, wake-lock, boot
+  and foreground-service permissions; notification permission is declared.
+
+VERSION 0.2.0 ENVIRONMENT AND PERMISSIONS
+----------------------------------------
+- Rechecked APK permissions: no INTERNET, READ_CONTACTS, location or broad
+  media/storage permission. Contact/photo access uses system picker grants.
+- Emulator package remains absent, and no .pem files are present in the
+  source workspace.
+- The owner approved moving generated build outputs to local AppData after
+  OneDrive-locked generated resource folders prevented an in-place rebuild.
+
+LIMITATIONS / NOT YET VERIFIED
+-----------------------------
+- Physical-device upgrade/install and minimum API 26 / target API 36 runtime
+  behavior (migration/contact unit tests simulate API 26/35, not real devices).
+- Native contact/photo picker interaction and permissions on the owner's phone.
+- Delivery of a daily notification under OEM battery restrictions, device
+  reboot and long idle periods.
+- Cloud document providers such as Google Drive, including failed sync.
+- Signed/minified release runtime and Google Play installation.
+- Real technician usability, accessibility audit, performance at maximum
+  record capacity and willingness to pay.
+- Signed/minified release runtime with real migrated user records.
+
+VS Code's generic test tool did not discover the Gradle tests. Tests were
+therefore executed successfully using the project's Gradle tasks above.
