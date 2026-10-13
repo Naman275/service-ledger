@@ -45,8 +45,8 @@ class RecordInputsTest {
 
     @Test fun `shared summary contains received and pending amounts`() {
         val data = sample()
-        val visit = data.visits.single().copy(amountPaise = 10_000, receivedPaise = 5_000)
-        val text = serviceSummary(ApplicationProvider.getApplicationContext(), data.customers.single(), data.appliances.single(), visit)
+        val visit = data.visits.single().copy(amountPaise = 10_000)
+        val text = serviceSummary(ApplicationProvider.getApplicationContext(), data.customers.single(), data.appliances.single(), visit, 5_000)
         assertTrue(text.contains("Received: ${formatMoney(5_000)}"))
         assertTrue(text.contains("Pending: ${formatMoney(5_000)}"))
     }

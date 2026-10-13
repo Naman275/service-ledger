@@ -1,6 +1,10 @@
 package dev.serviceledger
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
@@ -27,6 +31,7 @@ class LedgerFlowTest {
         compose.waitUntil(15_000) {
             compose.onAllNodesWithText("Add customer").fetchSemanticsNodes().isNotEmpty()
         }
+        compose.onNodeWithText("Customers").performClick()
     }
 
     @Test fun customerApplianceServiceAndFollowUpFlow() {
@@ -35,18 +40,20 @@ class LedgerFlowTest {
         compose.onNodeWithText("Phone (optional)").performTextInput("9876543210")
         compose.onNodeWithText("Save").performClick()
         compose.waitUntil(10_000) {
-            compose.onAllNodesWithText("Pilot Customer").fetchSemanticsNodes().isNotEmpty()
+            compose.onAllNodesWithText("Customer name *").fetchSemanticsNodes().isEmpty() &&
+                compose.onAllNodesWithText("Pilot Customer").fetchSemanticsNodes().isNotEmpty()
         }
         compose.activityRule.scenario.recreate()
         compose.waitUntil(10_000) {
             compose.onAllNodesWithText("Pilot Customer").fetchSemanticsNodes().isNotEmpty()
         }
         compose.onNodeWithText("Pilot Customer").performClick()
-        compose.onNodeWithText("Add appliance").performClick()
+        compose.onNodeWithText("Add appliance").performScrollTo().performClick()
         compose.onNodeWithText("Appliance name, e.g. Kitchen RO *").performTextInput("Kitchen RO")
         compose.onNodeWithText("Save").performClick()
         compose.waitUntil(10_000) {
-            compose.onAllNodesWithText("Kitchen RO").fetchSemanticsNodes().isNotEmpty()
+            compose.onAllNodesWithText("Appliance name, e.g. Kitchen RO *").fetchSemanticsNodes().isEmpty() &&
+                compose.onAllNodesWithText("Kitchen RO").fetchSemanticsNodes().isNotEmpty()
         }
         compose.onNodeWithText("Kitchen RO").performClick()
         compose.onNodeWithText("Record service").performClick()
@@ -54,7 +61,6 @@ class LedgerFlowTest {
         compose.onNodeWithText("Use date").performClick()
         compose.onNodeWithText("Work performed *").performTextInput("Changed filter")
         compose.onNodeWithText("Charge in INR *").performScrollTo().performTextReplacement("450.50")
-        compose.onNodeWithText("Amount received so far in INR *").performScrollTo().performTextReplacement("200.00")
         compose.onNodeWithText("Next service (optional)").performScrollTo().performClick()
         compose.onNodeWithText(
             LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy", Locale.US)), substring = true,
@@ -62,7 +68,15 @@ class LedgerFlowTest {
         compose.onNodeWithText("Use date").performClick()
         compose.onNodeWithText("Save").performClick()
         compose.waitUntil(10_000) {
-            compose.onAllNodesWithText("Changed filter").fetchSemanticsNodes().isNotEmpty()
+            compose.onAllNodesWithText("Work performed *").fetchSemanticsNodes().isEmpty() &&
+                compose.onAllNodesWithText("Changed filter").fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithText("Changed filter").performClick()
+        compose.onNodeWithText("Record payment").performScrollTo().performClick()
+        compose.onNodeWithText("Payment amount in INR *").performTextInput("200.00")
+        compose.onNode(hasText("Record payment") and hasClickAction() and hasAnyAncestor(isDialog())).performClick()
+        compose.waitUntil(10_000) {
+            compose.onAllNodesWithText("Payment amount in INR *").fetchSemanticsNodes().isEmpty()
         }
         compose.onNodeWithText("Follow-ups").performClick()
         compose.onNodeWithText("Share reminder").assertIsDisplayed()

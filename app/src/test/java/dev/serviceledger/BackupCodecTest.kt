@@ -21,7 +21,8 @@ class BackupCodecTest {
 
     @Test fun `encrypted roundtrip preserves every field and unicode`() {
         val original = sample()
-        val snapshot = original.copy(customers = listOf(original.customers.single().copy(name = "\u0906\u0936\u093e Rao")))
+        val snapshot = original.copy(customers = listOf(original.customers.single().copy(name = "\u0906\u0936\u093e Rao")),
+            payments = listOf(payment(original.visits.single()).copy(reference = "UPI-123", notes = "Deposit")))
         val bytes = BackupCodec.encrypt(snapshot, password)
         assertEquals(snapshot, BackupCodec.decrypt(ByteArrayInputStream(bytes), password).snapshot)
         assertFalse(bytes.toString(Charsets.UTF_8).contains("Main Road"))
@@ -75,7 +76,7 @@ class BackupCodecTest {
 
     @Test fun `schema and integer types are validated`() {
         val data = sample()
-        val unsupported = JSONObject(BackupCodec.encode(data)).put("schemaVersion", 3).toString()
+        val unsupported = JSONObject(BackupCodec.encode(data)).put("schemaVersion", 4).toString()
         assertThrows(IllegalArgumentException::class.java) { BackupCodec.decode(unsupported) }
         val fractional = JSONObject(BackupCodec.encode(data))
         fractional.getJSONArray("visits").getJSONObject(0).put("amountPaise", 1.5)
@@ -99,7 +100,8 @@ class BackupCodecTest {
         val original = sample()
         val data = original.copy(
             appliances = listOf(original.appliances.single().copy(photoId = id)),
-            visits = listOf(original.visits.single().copy(receivedPaise = 5_000, photoId = id)),
+            visits = listOf(original.visits.single().copy(photoId = id)),
+            payments = listOf(payment(original.visits.single())),
         )
         val restored = BackupCodec.decrypt(ByteArrayInputStream(BackupCodec.encrypt(data, password, mapOf(id to bytes))), password)
         assertEquals(data, restored.snapshot)
@@ -129,14 +131,39 @@ class BackupCodecTest {
                 put("paid", paid)
             }
             val restored = BackupCodec.decrypt(ByteArrayInputStream(legacyEncrypt(root.toString())), password)
-            assertEquals(if (paid) data.visits.single().amountPaise else 0L, restored.snapshot.visits.single().receivedPaise)
+            assertEquals(if (paid) data.visits.single().amountPaise else 0L, restored.snapshot.received(restored.snapshot.visits.single()))
+            assertTrue(restored.snapshot.payments.all { it.method == "OPENING" && it.paymentDay == null })
             assertTrue(restored.photos.isEmpty())
             assertEquals(data.customers, restored.snapshot.customers)
         }
     }
 
-    private fun legacyEncrypt(json: String): ByteArray {
-        val header = "SLBACK01".toByteArray()
+    @Test fun `version two backup becomes opening receipt and preserves balances`() {
+        val data = sample()
+        val root = JSONObject(BackupCodec.encode(data)).put("schemaVersion", 2)
+        root.remove("payments")
+        root.getJSONArray("visits").getJSONObject(0).apply {
+            remove("customerId")
+            remove("paymentDueDay")
+            put("receivedPaise", 12_345L)
+        }
+        val restored = BackupCodec.decrypt(ByteArrayInputStream(legacyEncrypt(root.toString(), "SLBACK02")), password).snapshot
+        assertEquals(12_345L, restored.received(restored.visits.single()))
+        assertEquals(data.visits.single().customerId, restored.visits.single().customerId)
+        assertEquals("OPENING", restored.payments.single().method)
+        assertNull(restored.payments.single().paymentDay)
+    }
+
+    @Test fun `general service and voided payment survive backup`() {
+        val original = sample()
+        val service = original.visits.single().copy(applianceId = null, paymentDueDay = 20_000)
+        val data = original.copy(visits = listOf(service), payments = listOf(payment(service).copy(
+            voidedAtMillis = 1_700_000_000_001, voidReason = "Duplicate")))
+        assertEquals(data, BackupCodec.decrypt(ByteArrayInputStream(BackupCodec.encrypt(data, password)), password).snapshot)
+    }
+
+    private fun legacyEncrypt(json: String, magic: String = "SLBACK01"): ByteArray {
+        val header = magic.toByteArray()
         val salt = ByteArray(16) { 1 }
         val iv = ByteArray(12) { 2 }
         val spec = PBEKeySpec(password, salt, 210_000, 256)

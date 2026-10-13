@@ -69,7 +69,9 @@ class DueWorker(context: Context, params: WorkerParameters) : CoroutineWorker(co
         }
         val application = applicationContext as LedgerApplication
         val count = try {
-            application.repository.snapshot().dueOnOrBefore(LocalDate.now().toEpochDay()).size
+            val snapshot = application.repository.snapshot()
+            val today = LocalDate.now().toEpochDay()
+            snapshot.dueOnOrBefore(today).size + snapshot.directFollowUps(today).size
         } catch (error: SQLiteException) {
             Log.e("DueWorker", "Unable to read due services.", error)
             return if (runAttemptCount < 3) Result.retry()

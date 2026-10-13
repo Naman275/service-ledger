@@ -10,19 +10,27 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "dev.serviceledger.app"
+        applicationId = "com.namansingla.serviceledger"
         minSdk = 26
         targetSdk = 36
-        versionCode = 2
-        versionName = "0.2.0"
+        versionCode = 4
+        versionName = "0.3.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+    signingConfigs {
+        create("release") {
+            storeFile = providers.environmentVariable("LEDGER_KEYSTORE_PATH").orNull?.let(::file)
+            storePassword = providers.environmentVariable("LEDGER_STORE_PASSWORD").orNull
+            keyAlias = providers.environmentVariable("LEDGER_KEY_ALIAS").orNull
+            keyPassword = providers.environmentVariable("LEDGER_KEY_PASSWORD").orNull
+        }
     }
     buildTypes {
         debug {
-            applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
         }
         release {
+            signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
@@ -38,6 +46,25 @@ android {
         unitTests.isIncludeAndroidResources = true
     }
     sourceSets.getByName("test").resources.srcDir("schemas")
+}
+
+androidComponents {
+    onVariants(selector().withBuildType("debug")) { variant ->
+        variant.applicationId.set("dev.serviceledger.app.debug")
+    }
+}
+
+val validateReleaseSigning = tasks.register("validateReleaseSigning") {
+    doLast {
+        check(listOf("LEDGER_KEYSTORE_PATH", "LEDGER_STORE_PASSWORD", "LEDGER_KEY_ALIAS", "LEDGER_KEY_PASSWORD")
+            .all { !providers.environmentVariable(it).orNull.isNullOrBlank() }) {
+            "Release signing is missing. Use tools\\release.ps1 with your local upload key."
+        }
+    }
+}
+
+tasks.matching { it.name == "preReleaseBuild" }.configureEach {
+    dependsOn(validateReleaseSigning)
 }
 
 kotlin {

@@ -66,7 +66,12 @@ class LedgerViewModel(application: Application) : AndroidViewModel(application) 
     fun mutate(success: String, onSuccess: () -> Unit = {}, operation: suspend LedgerRepository.() -> Unit) {
         execute(success, onSuccess) {
             repository.operation()
-            app.photos.removeUnreferenced(repository.snapshot().photoIds())
+            try {
+                app.photos.removeUnreferenced(repository.snapshot().photoIds())
+            } catch (failure: IOException) {
+                Log.e("ServiceLedger", "Records saved; photo cleanup failed.", failure)
+                messages.send("Records saved, but unused photos could not be removed. Try again later.")
+            }
         }
     }
 

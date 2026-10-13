@@ -54,7 +54,8 @@ class PhotoStoreTest {
             assertEquals(0, metadata.rotationDegrees)
             val data = sample().let {
                 it.copy(appliances = listOf(it.appliances.single().copy(photoId = id)),
-                    visits = listOf(it.visits.single().copy(receivedPaise = 5_000, photoId = id)))
+                    visits = listOf(it.visits.single().copy(photoId = id)),
+                    payments = listOf(payment(it.visits.single())))
             }
             val encrypted = BackupCodec.encrypt(data, "photo test password".toCharArray(), photos.export(data.photoIds()))
             photos.removeUnreferenced(emptySet())

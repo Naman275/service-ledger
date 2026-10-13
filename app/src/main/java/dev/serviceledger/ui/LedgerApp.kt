@@ -13,12 +13,13 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.PickVisualMediaRequest
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -42,10 +43,11 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -68,6 +70,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -109,12 +114,17 @@ import java.util.UUID
 import kotlinx.coroutines.delay
 
 private val ledgerColors = lightColorScheme(
-    primary = Color(0xFF006B5F),
+    primary = Color(0xFF126B60),
     onPrimary = Color.White,
-    primaryContainer = Color(0xFFD4F3E9),
-    secondaryContainer = Color(0xFFE8F0EB),
-    background = Color(0xFFF7FAF7),
-    surface = Color(0xFFF7FAF7),
+    primaryContainer = Color(0xFFD0F4E5),
+    secondaryContainer = Color(0xFFE5EEE9),
+    onSecondaryContainer = Color(0xFF193C33),
+    secondary = Color(0xFF486359),
+    outlineVariant = Color(0xFFCDD9D1),
+    background = Color(0xFFF5F7F4),
+    surface = Color(0xFFF5F7F4),
+    surfaceContainerLow = Color.White,
+    surfaceContainer = Color(0xFFEAF0EA),
 )
 
 private data class EditRequest(val kind: String, val id: String?, val parentId: String?)
@@ -126,9 +136,13 @@ fun LedgerApp(startOnDue: Boolean = false, vm: LedgerViewModel = viewModel()) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val snackbar = remember { SnackbarHostState() }
-    var tab by rememberSaveable { mutableStateOf(if (startOnDue) 0 else 1) }
+    var tab by rememberSaveable { mutableStateOf(if (startOnDue) 3 else 0) }
     var customerId by rememberSaveable { mutableStateOf<String?>(null) }
     var applianceId by rememberSaveable { mutableStateOf<String?>(null) }
+    var serviceId by rememberSaveable { mutableStateOf<String?>(null) }
+    var paymentServiceId by rememberSaveable { mutableStateOf<String?>(null) }
+    var voidPaymentId by rememberSaveable { mutableStateOf<String?>(null) }
+    var reminderServiceId by rememberSaveable { mutableStateOf<String?>(null) }
     var editKind by rememberSaveable { mutableStateOf<String?>(null) }
     var editId by rememberSaveable { mutableStateOf<String?>(null) }
     var editParent by rememberSaveable { mutableStateOf<String?>(null) }
@@ -194,21 +208,37 @@ fun LedgerApp(startOnDue: Boolean = false, vm: LedgerViewModel = viewModel()) {
         lifecycle.addObserver(observer)
         onDispose { lifecycle.removeObserver(observer) }
     }
-    BackHandler(enabled = customerId != null || applianceId != null) {
-        if (applianceId != null) applianceId = null else customerId = null
+    BackHandler(enabled = customerId != null || applianceId != null || serviceId != null) {
+        if (serviceId != null) serviceId = null else if (applianceId != null) applianceId = null else customerId = null
     }
 
     val data = vm.snapshot
     val customer = data?.customers?.find { it.id == customerId }
     val appliance = data?.appliances?.find { it.id == applianceId }
+    val service = data?.visits?.find { it.id == serviceId }
+    fun openService(target: ServiceVisit) {
+        customerId = target.customerId
+        serviceId = target.id
+        tab = 1
+    }
 
-    MaterialTheme(colorScheme = ledgerColors) {
+    MaterialTheme(colorScheme = if (isSystemInDarkTheme()) darkColorScheme(
+        primary = Color(0xFF83D5BD), primaryContainer = Color(0xFF005045),
+        onPrimary = Color(0xFF00382F), onPrimaryContainer = Color(0xFFB9EFDC),
+        secondaryContainer = Color(0xFF314B43),
+        onSecondaryContainer = Color(0xFFD5EBDD),
+        background = Color(0xFF101713), surface = Color(0xFF101713),
+        surfaceContainerLow = Color(0xFF1D2421), surfaceContainer = Color(0xFF1D2922),
+        onSurface = Color(0xFFE4ECE7), onSurfaceVariant = Color(0xFFBDCCC3),
+        outlineVariant = Color(0xFF3A4941),
+    ) else ledgerColors) {
         Scaffold(
             topBar = {
                 TopAppBar(
                     title = {
                         Column {
-                            Text(appliance?.name ?: customer?.name ?: stringResource(R.string.app_name), maxLines = 1)
+                            Text(if (service != null) stringResource(R.string.service_details)
+                                else appliance?.name ?: customer?.name ?: stringResource(R.string.app_name), maxLines = 1)
                             if (customer == null && appliance == null) {
                                 Text(stringResource(R.string.tagline), style = MaterialTheme.typography.labelSmall)
                             }
@@ -216,7 +246,7 @@ fun LedgerApp(startOnDue: Boolean = false, vm: LedgerViewModel = viewModel()) {
                     },
                     navigationIcon = {
                         if (customerId != null || applianceId != null) {
-                            IconButton(onClick = { if (applianceId != null) applianceId = null else customerId = null }) {
+                            IconButton(onClick = { if (serviceId != null) serviceId = null else if (applianceId != null) applianceId = null else customerId = null }) {
                                 Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back))
                             }
                         }
@@ -225,14 +255,20 @@ fun LedgerApp(startOnDue: Boolean = false, vm: LedgerViewModel = viewModel()) {
             },
             bottomBar = {
                 NavigationBar {
-                    listOf(R.string.due, R.string.customers, R.string.backup).forEachIndexed { index, label ->
+                    listOf(R.string.home, R.string.customers, R.string.payments, R.string.due, R.string.more).forEachIndexed { index, label ->
                         NavigationBarItem(
                             selected = tab == index,
-                            onClick = { tab = index; customerId = null; applianceId = null },
+                            onClick = { tab = index; customerId = null; applianceId = null; serviceId = null },
                             enabled = !vm.busy,
                             icon = {
                                 Icon(
-                                    when (index) { 0 -> Icons.Default.Schedule; 1 -> Icons.Default.Groups; else -> Icons.Default.CloudUpload },
+                                    when (index) {
+                                        0 -> Icons.Default.Home
+                                        1 -> Icons.Default.Groups
+                                        2 -> Icons.Default.AccountBalanceWallet
+                                        3 -> Icons.Default.Schedule
+                                        else -> Icons.Default.Settings
+                                    },
                                     null,
                                 )
                             },
@@ -243,11 +279,11 @@ fun LedgerApp(startOnDue: Boolean = false, vm: LedgerViewModel = viewModel()) {
             },
             snackbarHost = { SnackbarHost(snackbar) },
             floatingActionButton = {
-                if (data != null && !vm.loadError && tab == 1 && !vm.busy) {
+                if (data != null && !vm.loadError && tab in 0..1 && !vm.busy && service == null) {
                     FloatingActionButton(onClick = {
                         when {
                             appliance != null -> openEditor("visit", parent = appliance.id)
-                            customer != null -> openEditor("appliance", parent = customer.id)
+                            customer != null -> openEditor("service", parent = customer.id)
                             else -> openEditor("customer")
                         }
                     }) {
@@ -255,7 +291,7 @@ fun LedgerApp(startOnDue: Boolean = false, vm: LedgerViewModel = viewModel()) {
                             Icon(Icons.Default.Add, null)
                             Text(stringResource(when {
                                 appliance != null -> R.string.add_visit
-                                customer != null -> R.string.add_appliance
+                                customer != null -> R.string.add_visit
                                 else -> R.string.add_customer
                             }))
                         }
@@ -265,7 +301,7 @@ fun LedgerApp(startOnDue: Boolean = false, vm: LedgerViewModel = viewModel()) {
         ) { padding ->
             Column(Modifier.fillMaxSize().padding(padding)) {
                 if (vm.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-                if (editKind == null && !backupDialog && restoreUri == null) {
+                if (editKind == null && !backupDialog && restoreUri == null && paymentServiceId == null && voidPaymentId == null && reminderServiceId == null) {
                     vm.error?.let { ErrorBanner(it) }
                 }
                 when {
@@ -276,8 +312,15 @@ fun LedgerApp(startOnDue: Boolean = false, vm: LedgerViewModel = viewModel()) {
                             Text(stringResource(R.string.loading), Modifier.padding(16.dp))
                         }
                     }
-                    tab == 2 -> BackupScreen(vm, notificationsAllowed,
+                    tab == 4 -> BackupScreen(vm, notificationsAllowed,
                         onBackup = { vm.clearError(); backupDialog = true },
+                        onPrivacy = {
+                            try {
+                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(context.getString(R.string.privacy_policy_url))))
+                            } catch (_: ActivityNotFoundException) {
+                                vm.report("No browser is available. Read the privacy policy at ${context.getString(R.string.privacy_policy_url)}")
+                            }
+                        },
                         onRestore = {
                             try { restore.launch(arrayOf("*/*")) }
                             catch (_: ActivityNotFoundException) { vm.report("No file picker is available on this device.") }
@@ -296,12 +339,32 @@ fun LedgerApp(startOnDue: Boolean = false, vm: LedgerViewModel = viewModel()) {
                             }
                         },
                     )
-                    tab == 0 -> FollowUps(data, today,
+                    tab == 0 -> HomeScreen(data, today, onCustomers = { tab = 1 }, onPayments = { tab = 2 },
+                        onDue = { tab = 3 }, onService = ::openService)
+                    tab == 2 -> PaymentsScreen(data, today, ::openService)
+                    tab == 3 -> FollowUps(data, today,
                         onOpen = { target -> customerId = target.customerId; applianceId = target.id; tab = 1 },
                         onShare = { target ->
                             val owner = data.customers.first { it.id == target.customerId }
                             share(context.getString(R.string.reminder_message, owner.name, target.name, date(data.nextDue(target))))
                         },
+                        onService = ::openService,
+                        onShareService = { target ->
+                            val owner = data.customers.first { it.id == target.customerId }
+                            share(context.getString(R.string.reminder_message, owner.name, target.work, date(target.nextDueDay)))
+                        },
+                    )
+                    service != null && customer != null -> ServiceScreen(data, customer, service, today,
+                        onEdit = { openEditor("service", service.id, customer.id) },
+                        onDelete = {
+                            deleting = DeleteRequest(service.work, R.string.delete_visit_warning) {
+                                vm.mutate("Service deleted.", { serviceId = null; deleting = null }) { deleteVisit(service.id) }
+                            }
+                        },
+                        onPay = { vm.clearError(); paymentServiceId = service.id },
+                        onShare = { share(serviceSummary(context, customer, data.appliances.find { it.id == service.applianceId }, service, data.received(service))) },
+                        onRemind = { vm.clearError(); reminderServiceId = service.id },
+                        onVoid = { vm.clearError(); voidPaymentId = it.id },
                     )
                     appliance != null && customer != null -> ApplianceScreen(data, customer, appliance,
                         onEdit = { openEditor("appliance", appliance.id, customer.id) },
@@ -310,17 +373,13 @@ fun LedgerApp(startOnDue: Boolean = false, vm: LedgerViewModel = viewModel()) {
                                 vm.mutate("Appliance deleted.", { applianceId = null; deleting = null }) { deleteAppliance(appliance.id) }
                             }
                         },
-                        onEditVisit = { openEditor("visit", it.id, appliance.id) },
-                        onDeleteVisit = { visit ->
-                            deleting = DeleteRequest(date(visit.serviceDay), R.string.delete_visit_warning) {
-                                vm.mutate("Service deleted.", { deleting = null }) { deleteVisit(visit.id) }
-                            }
-                        },
-                        onShare = { visit -> share(serviceSummary(context, customer, appliance, visit)) },
+                        today = today, onService = ::openService,
                     )
                     customer != null -> CustomerScreen(data, customer,
                         onOpen = { applianceId = it.id },
                         onEdit = { openEditor("customer", customer.id) },
+                        today = today, onService = ::openService,
+                        onAddAppliance = { openEditor("appliance", parent = customer.id) },
                         onDelete = {
                             deleting = DeleteRequest(customer.name, R.string.delete_customer_warning) {
                                 vm.mutate("Customer deleted.", { customerId = null; deleting = null }) { deleteCustomer(customer.id) }
@@ -335,6 +394,23 @@ fun LedgerApp(startOnDue: Boolean = false, vm: LedgerViewModel = viewModel()) {
         editKind?.let { kind ->
             key(kind, editId, editParent) {
                 RecordForm(EditRequest(kind, editId, editParent), data ?: LedgerSnapshot(), vm, ::closeEditor)
+            }
+        }
+        if (data != null) {
+            paymentServiceId?.let { id ->
+                data.visits.find { it.id == id }?.let { target ->
+                    PaymentForm(data, target, vm) { paymentServiceId = null; vm.clearError() }
+                }
+            }
+            voidPaymentId?.let { id ->
+                data.payments.find { it.id == id }?.let { payment ->
+                    VoidPaymentForm(payment, vm) { voidPaymentId = null; vm.clearError() }
+                }
+            }
+            reminderServiceId?.let { id ->
+                data.visits.find { it.id == id }?.let { target ->
+                    ReminderForm(data, target, vm) { reminderServiceId = null; vm.clearError() }
+                }
             }
         }
         deleting?.let { request ->
@@ -386,6 +462,7 @@ fun LedgerApp(startOnDue: Boolean = false, vm: LedgerViewModel = viewModel()) {
                         password = ""
                         customerId = null
                         applianceId = null
+                        serviceId = null
                     }
                 },
             ) {
@@ -420,8 +497,10 @@ private fun CustomerList(data: LedgerSnapshot, onOpen: (Customer) -> Unit) {
                 Text(customer.name, style = MaterialTheme.typography.titleMedium)
                 if (customer.phone.isNotBlank()) Text(customer.phone)
                 if (customer.address.isNotBlank()) Text(customer.address, style = MaterialTheme.typography.bodySmall)
-                Text("${data.appliances.count { it.customerId == customer.id }} ${stringResource(R.string.appliances).lowercase()}",
-                    color = MaterialTheme.colorScheme.primary)
+                Text(stringResource(R.string.pending_value, formatMoney(data.balance(customer.id).pending)),
+                    color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.service_count, data.visits.count { it.customerId == customer.id }),
+                    style = MaterialTheme.typography.bodySmall)
             }
         }
         item { Spacer(Modifier.height(96.dp)) }
@@ -432,8 +511,10 @@ private fun CustomerList(data: LedgerSnapshot, onOpen: (Customer) -> Unit) {
 private fun CustomerScreen(
     data: LedgerSnapshot, customer: Customer, onOpen: (Appliance) -> Unit,
     onEdit: () -> Unit, onDelete: () -> Unit,
+    today: Long, onService: (ServiceVisit) -> Unit, onAddAppliance: () -> Unit,
 ) {
     val appliances = data.appliances.filter { it.customerId == customer.id }
+    val services = data.visits.filter { it.customerId == customer.id }
     LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             LedgerCard {
@@ -443,8 +524,20 @@ private fun CustomerScreen(
                 EditDelete(onEdit, onDelete)
             }
         }
+        item {
+            LedgerCard(kind = LedgerCardKind.Balance) {
+                BalanceOverview(data.balance(customer.id))
+            }
+        }
+        item { SectionTitle(stringResource(R.string.customer_ledger)) }
+        if (services.isEmpty()) item { EmptyState(stringResource(R.string.no_visits), "") }
+        items(services, key = { "service-${it.id}" }) { ServiceRow(data, it, today) { onService(it) } }
         item { SectionTitle(stringResource(R.string.appliances)) }
-        if (appliances.isEmpty()) item { EmptyState(stringResource(R.string.no_appliances), "") }
+        item {
+            OutlinedButton(onClick = onAddAppliance, modifier = Modifier.padding(horizontal = 16.dp)) {
+                Text(stringResource(R.string.add_appliance))
+            }
+        }
         items(appliances, key = { it.id }) { appliance ->
             LedgerCard(onClick = { onOpen(appliance) }) {
                 Text(appliance.name, style = MaterialTheme.typography.titleMedium)
@@ -460,8 +553,7 @@ private fun CustomerScreen(
 private fun ApplianceScreen(
     data: LedgerSnapshot, customer: Customer, appliance: Appliance,
     onEdit: () -> Unit, onDelete: () -> Unit,
-    onEditVisit: (ServiceVisit) -> Unit, onDeleteVisit: (ServiceVisit) -> Unit,
-    onShare: (ServiceVisit) -> Unit,
+    today: Long, onService: (ServiceVisit) -> Unit,
 ) {
     val visits = data.visits.filter { it.applianceId == appliance.id }
         .sortedWith(compareByDescending<ServiceVisit> { it.serviceDay }.thenByDescending { it.recordedAtMillis })
@@ -480,42 +572,45 @@ private fun ApplianceScreen(
         item { SectionTitle(stringResource(R.string.service_history)) }
         if (visits.isEmpty()) item { EmptyState(stringResource(R.string.no_visits), "") }
         items(visits, key = { it.id }) { visit ->
-            LedgerCard {
-                Text(date(visit.serviceDay), style = MaterialTheme.typography.titleMedium)
-                Text(visit.work)
-                if (visit.parts.isNotBlank()) Text("${stringResource(R.string.parts)}: ${visit.parts}")
-                PaymentSummary(visit.amountPaise, visit.receivedPaise)
-                visit.photoId?.let { PhotoPreview(it) }
-                DueLabel(visit.nextDueDay)
-                TextButton(onClick = { onShare(visit) }) { Text(stringResource(R.string.share_summary)) }
-                EditDelete({ onEditVisit(visit) }, { onDeleteVisit(visit) })
-            }
+            ServiceRow(data, visit, today) { onService(visit) }
         }
         item { Spacer(Modifier.height(96.dp)) }
     }
 }
 
 @Composable
-private fun FollowUps(data: LedgerSnapshot, today: Long, onOpen: (Appliance) -> Unit, onShare: (Appliance) -> Unit) {
+private fun FollowUps(
+    data: LedgerSnapshot, today: Long, onOpen: (Appliance) -> Unit, onShare: (Appliance) -> Unit,
+    onService: (ServiceVisit) -> Unit, onShareService: (ServiceVisit) -> Unit,
+) {
     val due = data.dueOnOrBefore(today)
+    val direct = data.directFollowUps(today)
     LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             LedgerCard {
                 Text(stringResource(R.string.local_badge), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                 Text(stringResource(R.string.follow_up_title), style = MaterialTheme.typography.headlineSmall)
                 Text(stringResource(R.string.follow_up_hint))
-                Text(stringResource(R.string.stats, data.customers.size, data.appliances.size, due.size),
+                Text(stringResource(R.string.follow_up_count, due.size + direct.size),
                     style = MaterialTheme.typography.labelLarge)
             }
         }
-        if (due.isEmpty()) item { EmptyState(stringResource(R.string.all_caught_up), stringResource(R.string.all_caught_up_hint)) }
-        items(due, key = { it.id }) { appliance ->
+        if (due.isEmpty() && direct.isEmpty()) item { EmptyState(stringResource(R.string.all_caught_up), stringResource(R.string.all_caught_up_hint)) }
+        items(due, key = { "appliance-${it.id}" }) { appliance ->
             val owner = data.customers.first { it.id == appliance.customerId }
-            LedgerCard(onClick = { onOpen(appliance) }) {
+            LedgerCard(onClick = { onOpen(appliance) }, kind = LedgerCardKind.Service) {
                 Text(owner.name, style = MaterialTheme.typography.titleMedium)
                 Text(appliance.name)
                 DueLabel(data.nextDue(appliance))
                 OutlinedButton(onClick = { onShare(appliance) }) { Text(stringResource(R.string.share_reminder)) }
+            }
+        }
+        items(direct, key = { "service-${it.id}" }) { service ->
+            LedgerCard(onClick = { onService(service) }, kind = LedgerCardKind.Service) {
+                Text(data.customers.first { it.id == service.customerId }.name, style = MaterialTheme.typography.titleMedium)
+                Text(service.work)
+                DueLabel(service.nextDueDay)
+                OutlinedButton(onClick = { onShareService(service) }) { Text(stringResource(R.string.share_reminder)) }
             }
         }
         item { Spacer(Modifier.height(24.dp)) }
@@ -525,7 +620,7 @@ private fun FollowUps(data: LedgerSnapshot, today: Long, onOpen: (Appliance) -> 
 @Composable
 private fun BackupScreen(
     vm: LedgerViewModel, notificationsAllowed: Boolean, onBackup: () -> Unit, onRestore: () -> Unit,
-    onReminders: (Boolean) -> Unit, onSettings: () -> Unit,
+    onReminders: (Boolean) -> Unit, onSettings: () -> Unit, onPrivacy: () -> Unit,
 ) {
     LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
@@ -559,6 +654,7 @@ private fun BackupScreen(
             LedgerCard {
                 Text(stringResource(R.string.privacy_title), style = MaterialTheme.typography.titleMedium)
                 Text(stringResource(R.string.privacy_description))
+                TextButton(onClick = onPrivacy, enabled = !vm.busy) { Text(stringResource(R.string.read_privacy_policy)) }
                 HorizontalDivider()
                 Text(stringResource(R.string.pilot_note), style = MaterialTheme.typography.bodySmall)
             }
@@ -584,8 +680,15 @@ private fun RecordForm(request: EditRequest, data: LedgerSnapshot, vm: LedgerVie
     var work by rememberSaveable { mutableStateOf(visit?.work ?: "") }
     var parts by rememberSaveable { mutableStateOf(visit?.parts ?: "") }
     var amount by rememberSaveable { mutableStateOf(visit?.amountPaise?.let { BigDecimal.valueOf(it, 2).toPlainString() } ?: "0.00") }
-    var received by rememberSaveable { mutableStateOf(visit?.receivedPaise?.let { BigDecimal.valueOf(it, 2).toPlainString() } ?: "0.00") }
     var photoId by rememberSaveable { mutableStateOf(appliance?.photoId ?: visit?.photoId) }
+    var paymentDue by rememberSaveable { mutableStateOf(visit?.paymentDueDay) }
+    val ownerId = visit?.customerId ?: if (request.kind == "visit")
+        data.appliances.find { it.id == request.parentId }?.customerId else request.parentId
+    var selectedAppliance by rememberSaveable {
+        mutableStateOf(visit?.applianceId ?: if (request.kind == "visit") request.parentId else null)
+    }
+    val draft = listOf(name, phone, address, model, serial, serviceDay, due, work, parts, amount, photoId, paymentDue, selectedAppliance)
+    val originalDraft = remember { draft }
     val contactPicker = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             val uri = result.data?.data
@@ -605,7 +708,7 @@ private fun RecordForm(request: EditRequest, data: LedgerSnapshot, vm: LedgerVie
         "appliance" -> if (request.id == null) R.string.add_appliance else R.string.edit_appliance
         else -> if (request.id == null) R.string.add_visit else R.string.edit_visit
     }
-    FormDialog(stringResource(title), vm.busy, vm.error, onDismiss, stringResource(R.string.save), onSave = {
+    FormDialog(stringResource(title), vm.busy, vm.error, onDismiss, stringResource(R.string.save), confirmDiscard = draft != originalDraft, onSave = {
         try {
             when (request.kind) {
                 "customer" -> {
@@ -618,9 +721,9 @@ private fun RecordForm(request: EditRequest, data: LedgerSnapshot, vm: LedgerVie
                     LedgerRules.validate(record)
                     vm.mutate("Appliance saved.", onDismiss) { save(record) }
                 }
-                "visit" -> {
-                    val record = ServiceVisit(id, requireNotNull(request.parentId), serviceDay,
-                        work.trim(), parts.trim(), LedgerRules.parseAmount(amount), LedgerRules.parseAmount(received), due, recordedAt, photoId)
+                "visit", "service" -> {
+                    val record = ServiceVisit(id, requireNotNull(ownerId), selectedAppliance, serviceDay,
+                        work.trim(), parts.trim(), LedgerRules.parseAmount(amount), due, recordedAt, photoId, paymentDue)
                     LedgerRules.validate(record)
                     vm.mutate("Service saved.", onDismiss) { save(record) }
                 }
@@ -649,14 +752,27 @@ private fun RecordForm(request: EditRequest, data: LedgerSnapshot, vm: LedgerVie
                 PhotoInput(photoId, !vm.busy, ::choosePhoto, { photoId = null })
             }
             else -> {
+                var expanded by remember { mutableStateOf(false) }
+                Column {
+                    Text(stringResource(R.string.optional_appliance), style = MaterialTheme.typography.labelLarge)
+                    OutlinedButton(onClick = { expanded = true }, enabled = !vm.busy, modifier = Modifier.fillMaxWidth()) {
+                        Text(data.appliances.find { it.id == selectedAppliance }?.name ?: stringResource(R.string.no_appliance))
+                    }
+                    DropdownMenu(expanded, { expanded = false }) {
+                        DropdownMenuItem(text = { Text(stringResource(R.string.no_appliance)) },
+                            onClick = { selectedAppliance = null; expanded = false })
+                        data.appliances.filter { it.customerId == ownerId }.forEach { target ->
+                            DropdownMenuItem(text = { Text(target.name) }, onClick = { selectedAppliance = target.id; expanded = false })
+                        }
+                    }
+                }
                 CalendarInput(R.string.service_date, serviceDay, enabled = !vm.busy) { it?.let { selected -> serviceDay = selected } }
                 Input(R.string.work, work, multiline = true, enabled = !vm.busy) { work = it }
                 Input(R.string.parts, parts, multiline = true, enabled = !vm.busy) { parts = it }
                 Input(R.string.amount, amount, KeyboardType.Decimal, enabled = !vm.busy) { amount = it }
-                Input(R.string.received_amount, received, KeyboardType.Decimal, enabled = !vm.busy) { received = it }
-                Text(stringResource(R.string.received_hint), style = MaterialTheme.typography.bodySmall)
-                TextButton(onClick = { received = amount }, enabled = !vm.busy) { Text(stringResource(R.string.mark_paid)) }
-                PaymentInputSummary(amount, received)
+                Text(stringResource(R.string.received_readonly), style = MaterialTheme.typography.bodySmall)
+                PaymentInputSummary(amount, BigDecimal.valueOf(visit?.let(data::received) ?: 0L, 2).toPlainString())
+                CalendarInput(R.string.payment_due, paymentDue, enabled = !vm.busy, optional = true, minimumDay = serviceDay) { paymentDue = it }
                 CalendarInput(R.string.next_due, due, enabled = !vm.busy, optional = true, minimumDay = serviceDay) { due = it }
                 Text(stringResource(R.string.next_due_hint), style = MaterialTheme.typography.bodySmall)
                 PhotoInput(photoId, !vm.busy, ::choosePhoto, { photoId = null })
@@ -666,11 +782,13 @@ private fun RecordForm(request: EditRequest, data: LedgerSnapshot, vm: LedgerVie
 }
 
 @Composable
-private fun FormDialog(
+internal fun FormDialog(
     title: String, busy: Boolean, error: String?, onDismiss: () -> Unit,
-    action: String, onSave: () -> Unit, content: @Composable ColumnScope.() -> Unit,
+    action: String, onSave: () -> Unit, confirmDiscard: Boolean = false, content: @Composable ColumnScope.() -> Unit,
 ) {
-    Dialog(onDismissRequest = { if (!busy) onDismiss() }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    var discard by remember { mutableStateOf(false) }
+    fun dismiss() { if (!busy) { if (confirmDiscard) discard = true else onDismiss() } }
+    Dialog(onDismissRequest = ::dismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             Column(Modifier.windowInsetsPadding(WindowInsets.safeDrawing).imePadding().padding(20.dp)) {
                 Text(title, style = MaterialTheme.typography.headlineSmall)
@@ -680,16 +798,23 @@ private fun FormDialog(
                 error?.let { ErrorBanner(it) }
                 if (busy) Text(stringResource(R.string.working))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton(onClick = onDismiss, enabled = !busy) { Text(stringResource(R.string.cancel)) }
+                    TextButton(onClick = ::dismiss, enabled = !busy) { Text(stringResource(R.string.cancel)) }
                     Button(onClick = onSave, enabled = !busy) { Text(action) }
                 }
             }
         }
     }
+    if (discard) AlertDialog(
+        onDismissRequest = { discard = false },
+        title = { Text(stringResource(R.string.discard_title)) },
+        text = { Text(stringResource(R.string.discard_hint)) },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.discard)) } },
+        dismissButton = { TextButton(onClick = { discard = false }) { Text(stringResource(R.string.keep_editing)) } },
+    )
 }
 
 @Composable
-private fun Input(
+internal fun Input(
     label: Int, value: String, keyboard: KeyboardType = KeyboardType.Text,
     multiline: Boolean = false, placeholder: String = "", enabled: Boolean = true, onChange: (String) -> Unit,
 ) {
@@ -709,18 +834,7 @@ private fun PasswordField(label: Int, value: String, onChange: (String) -> Unit)
 }
 
 @Composable
-private fun LedgerCard(onClick: (() -> Unit)? = null, content: @Composable ColumnScope.() -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).let { if (onClick != null) it.clickable(onClick = onClick) else it },
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-    ) {
-        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp), content = content)
-    }
-}
-
-@Composable
-private fun EditDelete(onEdit: () -> Unit, onDelete: () -> Unit) {
+internal fun EditDelete(onEdit: () -> Unit, onDelete: () -> Unit) {
     Row {
         TextButton(onClick = onEdit) { Text(stringResource(R.string.edit)) }
         TextButton(onClick = onDelete) { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) }
@@ -728,18 +842,18 @@ private fun EditDelete(onEdit: () -> Unit, onDelete: () -> Unit) {
 }
 
 @Composable
-private fun DueLabel(day: Long?) {
+internal fun DueLabel(day: Long?) {
     Text(if (day == null) stringResource(R.string.no_due_date) else stringResource(R.string.due_date, date(day)),
         color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodyMedium)
 }
 
 @Composable
-private fun SectionTitle(title: String) {
+internal fun SectionTitle(title: String) {
     Text(title, Modifier.padding(horizontal = 20.dp, vertical = 4.dp), style = MaterialTheme.typography.titleMedium)
 }
 
 @Composable
-private fun EmptyState(title: String, description: String) {
+internal fun EmptyState(title: String, description: String) {
     Column(Modifier.fillMaxWidth().padding(32.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Icon(Icons.AutoMirrored.Filled.ListAlt, null, Modifier.size(40.dp), tint = MaterialTheme.colorScheme.primary)
         Text(title, style = MaterialTheme.typography.titleLarge)
@@ -755,9 +869,9 @@ private fun ErrorBanner(message: String) {
     }
 }
 
-private fun date(day: Long?): String = day?.let { LocalDate.ofEpochDay(it).format(DateTimeFormatter.ofPattern("dd MMM yyyy")) } ?: "-"
-internal fun serviceSummary(context: Context, customer: Customer, appliance: Appliance, visit: ServiceVisit): String =
-    context.getString(R.string.summary_message, customer.name, appliance.name, date(visit.serviceDay), visit.work,
+internal fun date(day: Long?): String = day?.let { LocalDate.ofEpochDay(it).format(DateTimeFormatter.ofPattern("dd MMM yyyy")) } ?: "-"
+internal fun serviceSummary(context: Context, customer: Customer, appliance: Appliance?, visit: ServiceVisit, received: Long): String =
+    context.getString(R.string.summary_message, customer.name, appliance?.name ?: context.getString(R.string.general_service), date(visit.serviceDay), visit.work,
         visit.parts.ifBlank { "-" }, formatMoney(visit.amountPaise),
-        formatMoney(visit.receivedPaise), formatMoney(LedgerRules.pendingAmount(visit.amountPaise, visit.receivedPaise)),
+        formatMoney(received), formatMoney(LedgerRules.pendingAmount(visit.amountPaise, received)),
         visit.nextDueDay?.let(::date) ?: context.getString(R.string.no_due_date))

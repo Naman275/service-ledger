@@ -64,14 +64,14 @@ class LedgerRepositoryTest {
         assertEquals(second, repository.snapshot())
     }
 
-    @Test fun `appliance deletion preserves owner but deletes visits`() = runBlocking {
+    @Test fun `appliance deletion preserves services as general services`() = runBlocking {
         val data = sample()
         repository.restore(data)
         repository.deleteAppliance(data.appliances.single().id)
         val after = repository.snapshot()
         assertEquals(data.customers, after.customers)
         assertTrue(after.appliances.isEmpty())
-        assertTrue(after.visits.isEmpty())
+        assertEquals(data.visits.single().copy(applianceId = null), after.visits.single())
     }
 
     @Test fun `invalid restore leaves existing records untouched`() = runBlocking {
@@ -108,5 +108,86 @@ class LedgerRepositoryTest {
         assertTrue(repository.snapshot().dueOnOrBefore(30_000).isEmpty())
         repository.deleteVisit(data.visits.single().id)
         assertEquals(1, repository.snapshot().dueOnOrBefore(30_000).size)
+    }
+
+    @Test fun `general service receipts survive reopening`() = runBlocking {
+        val data = sample()
+        val service = data.visits.single().copy(applianceId = null, amountPaise = 10_000)
+        repository.restore(data.copy(appliances = emptyList(), visits = listOf(service)))
+        repository.recordPayment(payment(service, 3_000))
+        repository.recordPayment(payment(service, 2_000).copy(method = "UPI", reference = "transaction-1"))
+        database.close()
+        database = Room.databaseBuilder(context, LedgerDatabase::class.java, name).build()
+        repository = LedgerRepository(database)
+        val after = repository.snapshot()
+        assertEquals(2, after.payments.size)
+        assertEquals(5_000L, after.received(service))
+        assertEquals(5_000L, after.pending(service))
+        assertEquals(5_000L, after.balance(service.customerId).pending)
+    }
+
+    @Test fun `invalid receipts preserve balance`() = runBlocking {
+        val data = sample()
+        val service = data.visits.single().copy(amountPaise = 10_000)
+        repository.restore(data.copy(visits = listOf(service)))
+        val first = payment(service, 6_000)
+        repository.recordPayment(first)
+        for (amount in listOf(0L, -1L, 4_001L)) {
+            assertThrows(IllegalArgumentException::class.java) { runBlocking { repository.recordPayment(payment(service, amount)) } }
+        }
+        assertThrows(IllegalArgumentException::class.java) { runBlocking { repository.recordPayment(first) } }
+        repository.recordPayment(payment(service, 4_000))
+        assertTrue(repository.snapshot().pendingVisits().isEmpty())
+        assertEquals(10_000L, repository.snapshot().received(service))
+    }
+
+    @Test fun `duplicate payment ID is rejected`() = runBlocking {
+        val data = sample()
+        repository.restore(data)
+        val payment = payment(data.visits.single())
+        repository.recordPayment(payment)
+        assertThrows(SQLiteException::class.java) { runBlocking { repository.recordPayment(payment) } }
+        assertEquals(1, repository.snapshot().payments.size)
+    }
+
+    @Test fun `payment correction keeps history and reopens balance`() = runBlocking<Unit> {
+        val data = sample()
+        repository.restore(data)
+        val service = data.visits.single()
+        val payment = payment(service, service.amountPaise)
+        repository.recordPayment(payment)
+        assertThrows(IllegalArgumentException::class.java) { runBlocking { repository.voidPayment(payment.id, " ") } }
+        repository.voidPayment(payment.id, "Entered twice")
+        val after = repository.snapshot()
+        assertEquals("Entered twice", after.payments.single().voidReason)
+        assertNotNull(after.payments.single().voidedAtMillis)
+        assertEquals(service.amountPaise, after.pending(service))
+        assertThrows(IllegalArgumentException::class.java) { runBlocking { repository.voidPayment(payment.id, "Again") } }
+        assertThrows(IllegalArgumentException::class.java) { runBlocking { repository.deleteVisit(service.id) } }
+        assertThrows(IllegalArgumentException::class.java) { runBlocking { repository.deleteCustomer(service.customerId) } }
+    }
+
+    @Test fun `service edits protect receipts and ownership`() = runBlocking {
+        val data = sample()
+        val other = sample()
+        repository.restore(data.copy(customers = data.customers + other.customers, appliances = data.appliances + other.appliances))
+        val service = data.visits.single()
+        repository.recordPayment(payment(service))
+        assertThrows(IllegalArgumentException::class.java) { runBlocking { repository.save(service.copy(amountPaise = 4_999)) } }
+        assertThrows(IllegalArgumentException::class.java) { runBlocking { repository.save(service.copy(applianceId = other.appliances.single().id)) } }
+        repository.save(service.copy(applianceId = null, amountPaise = 5_000))
+        assertEquals(0L, repository.snapshot().balance(service.customerId).pending)
+    }
+
+    @Test fun `invalid payment restore preserves records`() = runBlocking {
+        val data = sample()
+        repository.restore(data)
+        for (invalid in listOf(
+            data.copy(payments = listOf(payment(data.visits.single()).copy(serviceId = UUID.randomUUID().toString()))),
+            data.copy(payments = listOf(payment(data.visits.single(), data.visits.single().amountPaise + 1))),
+        )) {
+            assertThrows(IllegalArgumentException::class.java) { runBlocking { repository.restore(invalid) } }
+            assertEquals(data, repository.snapshot())
+        }
     }
 }

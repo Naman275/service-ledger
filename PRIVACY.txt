@@ -1,0 +1,13 @@
+SERVICE LEDGER - PRIVACY POLICY
+==============================
+Developer: Naman Singla
+Support/privacy contact: rudratheternity@gmail.com
+Effective date: 13 October 2026
+
+Public policy: https://naman275.github.io/service-ledger/
+Canonical source: docs\index.html
+
+The public HTML policy replaces the previous implementation draft. It covers
+local ledger storage, individual payments, contact/photo pickers, manual sharing,
+WhatsApp reminders, encrypted backups, notifications, retention and deletion.
+The app links to the same policy from More -> Read privacy policy.

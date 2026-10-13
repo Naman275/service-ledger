@@ -1,5 +1,101 @@
 SERVICE LEDGER - VALIDATION RESULTS
 ===================================
+VERSION 0.3.1 - SIGNED PLAY CANDIDATE, 13 OCTOBER 2026
+----------------------------------------------------
+PASS: Full :app:testDebugUnitTest - 74 tests, 0 failures/errors/skipped.
+  Includes the 0.3.0 data, backup and migration suites, card-contrast tests,
+  light/dark payment workflows and the published privacy-link intent test.
+PASS: :app:lintDebug and :app:lintRelease (no errors; advisory warnings remain).
+PASS: :app:assembleDebug and :app:assembleDebugAndroidTest.
+PASS: Signed, R8-minified :app:bundleRelease using the local upload key.
+  Version 0.3.1 / versionCode 4, production ID com.namansingla.serviceledger.
+  Debug APK identity remains dev.serviceledger.app.debug, confirmed with aapt.
+PASS: Missing signing credentials explicitly reject :app:bundleRelease via
+  validateReleaseSigning; rebuilding with tools\release.ps1 succeeds.
+PASS: jarsigner verifies the AAB signature. It reports self-signed certificate,
+  timestamp and ZIP/JarInputStream-order advisories; Android upload certificates
+  are self-signed, and Play Console must independently validate the upload.
+
+Signing material is outside the repository under
+%LOCALAPPDATA%\ServiceLedger\signing. Its password is Windows-DPAPI protected.
+The key/password still require a separate secure owner-managed backup.
+No physical device was connected, no emulator was installed, and no signed
+release runtime / Play-installed smoke test has been performed in this run.
+
+VERSION 0.3.1 - CARD CLARITY REFINEMENT, 13 OCTOBER 2026
+-----------------------------------------------------
+PASS: 12 focused JVM/Robolectric tests, 0 failures, 0 errors:
+  LedgerCardColorsTest: 3
+  LedgerWorkflowTest:  4
+  RecordInputsTest:    5
+PASS: :app:lintDebug (no errors; existing advisory warnings remain).
+PASS: :app:assembleDebug and :app:assembleDebugAndroidTest.
+  Version 0.3.1-debug / versionCode 4.
+
+Verified:
+- All light/dark card content and heading pairs meet 4.5:1 contrast, as do
+  shared secondary text and action colors against the card surfaces.
+- Service, balance and receipt cards use different surfaces plus text/icon
+  labels. Voided receipts use neutral styling and explicit correction labels.
+- Complete payment/reminder-preview/correction workflows in light and dark mode.
+- Service/payment grouping, labeled outstanding amounts and existing amount/date
+  widgets. Rendered service, receipt, payments and dark-mode previews inspected.
+
+This update changes presentation only; the schema and payment calculations
+are unchanged. The full data/migration suite was not rerun for this UI-only
+refinement; the previous complete run is recorded below.
+Physical-device appearance, large-text/accessibility testing and WhatsApp
+hand-off still require device validation. Contrast checks are not a full
+accessibility audit. No emulator was installed.
+
+VERSION 0.3.0 - 13 OCTOBER 2026
+------------------------------
+PASS: :app:testDebugUnitTest - 69 tests, 0 failures, 0 errors.
+  BackupCodecTest:       17
+  ContactImportTest:      4
+  LedgerRepositoryTest: 14
+  LedgerRulesTest:      16
+  LedgerWorkflowTest:    3
+  MigrationTest:         4
+  PaymentRemindersTest:  3
+  PhotoStoreTest:        3
+  RecordInputsTest:      5
+
+PASS: :app:lintDebug - no errors; advisory lint warnings remain.
+PASS: :app:assembleDebug and :app:assembleDebugAndroidTest.
+  Version 0.3.0-debug / versionCode 3; output under
+  %LOCALAPPDATA%\ServiceLedger\build\app\outputs\apk\debug\app-debug.apk.
+
+Verified:
+- Schema 1 -> 3 and 2 -> 3 migrations on Robolectric API 26 and 35.
+  Previous receipts preserve balances and photos without inventing payment dates.
+- General services without appliances; customer and overall balances.
+- Multiple payments, overpayment/zero/duplicate rejection, payment correction,
+  protected financial-history deletion, and service-charge/ownership validation.
+- Legacy backup imports, schema-3 empty/nonempty backup round trips, payment
+  history and correction round trips, and invalid payment restore rejection.
+- Native-rendered Compose flow: customer -> general service -> partial payment ->
+  WhatsApp reminder preview -> void with reason -> pending/history screens.
+- Unsaved draft confirmation, dark-mode home screen, international number
+  validation, correctly encoded reminder text, and no reminder for paid services.
+- Visually inspected native-rendered light/dark home, service and payments previews.
+
+Environment:
+- Used the Android SDK in %LOCALAPPDATA%\Android\Sdk; restored only platform 36
+  and build-tools 35.0.0. No emulator/system image was installed.
+- The build helper recognizes this conventional SDK location automatically.
+- adb reported no connected devices. Instrumentation sources compile, but
+  connectedDebugAndroidTest was NOT run.
+
+Still requires device/pilot validation:
+- Actual WhatsApp and WhatsApp Business launch/fallback and manual sending.
+- Physical-device upgrade with real records, native pickers, notifications,
+  accessibility/large text and performance near the record limit.
+- The existing 8 MB backup limit still applies, including photos.
+- Release signing and minified release runtime have not been validated for 0.3.0.
+
+HISTORICAL VERSION 0.2.0 RESULTS
+------------------------------
 Version 0.2.0, executed on 13 October 2026.
 Build outputs: %LOCALAPPDATA%\ServiceLedger\build\app (outside OneDrive).
 

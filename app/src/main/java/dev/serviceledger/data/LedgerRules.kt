@@ -10,15 +10,32 @@ data class LedgerSnapshot(
     val customers: List<Customer> = emptyList(),
     val appliances: List<Appliance> = emptyList(),
     val visits: List<ServiceVisit> = emptyList(),
+    val payments: List<Payment> = emptyList(),
 ) {
     fun photoIds(): Set<String> = (appliances.mapNotNull { it.photoId } + visits.mapNotNull { it.photoId }).toSet()
 
     private val latestVisits by lazy {
-        visits.groupBy { it.applianceId }.mapValues { (_, entries) ->
+        visits.filter { it.applianceId != null }.groupBy { it.applianceId }.mapValues { (_, entries) ->
             entries.maxWith(compareBy<ServiceVisit> { it.serviceDay }
                 .thenBy { it.recordedAtMillis }.thenBy { it.id })
         }
     }
+
+    private val receipts by lazy {
+        payments.filter { it.voidedAtMillis == null }.groupBy { it.serviceId }
+            .mapValues { (_, entries) -> entries.sumOf { it.amountPaise } }
+    }
+    fun received(visit: ServiceVisit): Long = receipts[visit.id] ?: 0L
+    fun pending(visit: ServiceVisit): Long = LedgerRules.pendingAmount(visit.amountPaise, received(visit))
+    fun pendingVisits(): List<ServiceVisit> = visits.filter { pending(it) > 0 }
+        .sortedWith(compareBy<ServiceVisit> { it.paymentDueDay ?: Long.MAX_VALUE }.thenBy { it.serviceDay }.thenBy { it.id })
+    fun balance(customerId: String? = null): LedgerBalance {
+        val services = if (customerId == null) visits else visits.filter { it.customerId == customerId }
+        return LedgerBalance(services.sumOf { it.amountPaise }, services.sumOf(::received))
+    }
+    fun directFollowUps(day: Long): List<ServiceVisit> =
+        visits.filter { it.applianceId == null && it.nextDueDay?.let { due -> due <= day } == true }
+            .sortedBy { it.nextDueDay }
 
     fun nextDue(appliance: Appliance): Long? {
         val latest = latestVisits[appliance.id]
@@ -30,27 +47,40 @@ data class LedgerSnapshot(
             .sortedWith(compareBy<Appliance> { nextDue(it) }.thenBy { it.name })
 
     fun validate() {
-        require(customers.size + appliances.size + visits.size <= MAX_RECORDS) {
+        require(customers.size.toLong() + appliances.size + visits.size + payments.size <= MAX_RECORDS) {
             "Too many records. The current limit is $MAX_RECORDS."
         }
         require(customers.map { it.id }.toSet().size == customers.size) { "Duplicate customer IDs." }
         require(appliances.map { it.id }.toSet().size == appliances.size) { "Duplicate appliance IDs." }
         require(visits.map { it.id }.toSet().size == visits.size) { "Duplicate service IDs." }
+        require(payments.map { it.id }.toSet().size == payments.size) { "Duplicate payment IDs." }
         customers.forEach(LedgerRules::validate)
         appliances.forEach(LedgerRules::validate)
         visits.forEach(LedgerRules::validate)
+        payments.forEach(LedgerRules::validate)
         val customerIds = customers.map { it.id }.toSet()
-        val applianceIds = appliances.map { it.id }.toSet()
+        val appliancesById = appliances.associateBy { it.id }
         require(appliances.all { it.customerId in customerIds }) { "An appliance has no customer." }
-        require(visits.all { it.applianceId in applianceIds }) { "A service has no appliance." }
+        require(visits.all { it.customerId in customerIds }) { "A service has no customer." }
+        require(visits.all { it.applianceId == null || appliancesById[it.applianceId]?.customerId == it.customerId }) {
+            "A service appliance must belong to its customer."
+        }
+        val visitIds = visits.map { it.id }.toSet()
+        require(payments.all { it.serviceId in visitIds }) { "A payment has no service." }
+        visits.forEach { pending(it) }
     }
 
     companion object {
-        const val MAX_RECORDS = 20_000
+        const val MAX_RECORDS = 40_000
     }
 }
 
+data class LedgerBalance(val charged: Long, val received: Long) {
+    val pending: Long get() = charged - received
+}
+
 object LedgerRules {
+    val paymentMethods = listOf("CASH", "UPI", "BANK", "CARD", "OTHER")
     private val firstDay = LocalDate.of(1900, 1, 1).toEpochDay()
     private val lastDay = LocalDate.of(2200, 12, 31).toEpochDay()
     const val MAX_AMOUNT_PAISE = 99_999_999_999L
@@ -99,18 +129,39 @@ object LedgerRules {
 
     fun validate(visit: ServiceVisit) {
         id(visit.id)
-        id(visit.applianceId)
+        id(visit.customerId)
+        visit.applianceId?.let(::id)
         validateDay(visit.serviceDay)
         text(visit.work, "Work performed", 2_000, required = true)
         text(visit.parts, "Parts", 1_000)
         require(visit.amountPaise in 0..MAX_AMOUNT_PAISE) { "Invalid service amount." }
-        pendingAmount(visit.amountPaise, visit.receivedPaise)
         visit.photoId?.let(PhotoRules::validateId)
         require(visit.recordedAtMillis in 0..7_289_654_400_000L) { "Invalid record timestamp." }
         visit.nextDueDay?.let {
             validateDay(it)
             require(it >= visit.serviceDay) { "Next service cannot be before this service." }
         }
+        visit.paymentDueDay?.let {
+            validateDay(it)
+            require(it >= visit.serviceDay) { "Payment due date cannot be before the service." }
+        }
+    }
+
+    fun validate(payment: Payment) {
+        id(payment.id)
+        id(payment.serviceId)
+        require(payment.amountPaise in 1..MAX_AMOUNT_PAISE) { "Payment must be greater than zero." }
+        require(payment.method in paymentMethods || payment.method == "OPENING") { "Choose a valid payment method." }
+        require(payment.paymentDay != null || payment.method == "OPENING") { "Payment date is required." }
+        payment.paymentDay?.let(::validateDay)
+        text(payment.reference, "Payment reference", 100)
+        text(payment.notes, "Payment notes", 500)
+        require(payment.recordedAtMillis in 0..7_289_654_400_000L) { "Invalid payment timestamp." }
+        payment.voidedAtMillis?.let {
+            require(it in payment.recordedAtMillis..7_289_654_400_000L) { "Invalid void timestamp." }
+        }
+        text(payment.voidReason, "Correction reason", 500, required = payment.voidedAtMillis != null)
+        require(payment.voidedAtMillis != null || payment.voidReason.isEmpty()) { "An active payment cannot have a correction reason." }
     }
 
     fun pendingAmount(totalPaise: Long, receivedPaise: Long): Long {

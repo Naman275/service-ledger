@@ -5,6 +5,7 @@ import dev.serviceledger.data.Customer
 import dev.serviceledger.data.LedgerRules
 import dev.serviceledger.data.LedgerSnapshot
 import dev.serviceledger.data.ServiceVisit
+import dev.serviceledger.data.Payment
 import java.time.LocalDate
 import java.util.UUID
 import org.junit.Assert.*
@@ -12,7 +13,9 @@ import org.junit.Test
 
 internal fun customer() = Customer(UUID.randomUUID().toString(), "Asha Rao", "+91 98765 43210", "12 Main Road")
 internal fun appliance(customer: Customer) = Appliance(UUID.randomUUID().toString(), customer.id, "Kitchen RO", "Model A", "RO-123", 20_000)
-internal fun visit(appliance: Appliance) = ServiceVisit(UUID.randomUUID().toString(), appliance.id, 19_900, "Replaced filter", "Sediment filter", 45_050, 45_050, 20_050, 1_700_000_000_000)
+internal fun visit(appliance: Appliance) = ServiceVisit(UUID.randomUUID().toString(), appliance.customerId, appliance.id, 19_900, "Replaced filter", "Sediment filter", 45_050, 20_050, 1_700_000_000_000)
+internal fun payment(service: ServiceVisit, amount: Long = 5_000) =
+    Payment(UUID.randomUUID().toString(), service.id, amount, 19_900, "CASH", recordedAtMillis = 1_700_000_000_000)
 internal fun sample(): LedgerSnapshot {
     val customer = customer()
     val appliance = appliance(customer)
@@ -31,8 +34,9 @@ class LedgerRulesTest {
     @Test fun `negative received and overpayments are rejected`() {
         assertThrows(IllegalArgumentException::class.java) { LedgerRules.pendingAmount(10_000, -1) }
         assertThrows(IllegalArgumentException::class.java) { LedgerRules.pendingAmount(10_000, 10_001) }
-        val visit = sample().visits.single()
-        assertThrows(IllegalArgumentException::class.java) { LedgerRules.validate(visit.copy(receivedPaise = visit.amountPaise + 1)) }
+        val data = sample()
+        val visit = data.visits.single()
+        assertThrows(IllegalArgumentException::class.java) { data.copy(payments = listOf(payment(visit, visit.amountPaise + 1))).validate() }
     }
 
     @Test fun `amounts use exact minor units`() {
@@ -119,5 +123,25 @@ class LedgerRulesTest {
         assertThrows(IllegalArgumentException::class.java) { data.copy(customers = data.customers + data.customers).validate() }
         assertThrows(IllegalArgumentException::class.java) { data.copy(customers = emptyList()).validate() }
         assertThrows(IllegalArgumentException::class.java) { data.copy(appliances = emptyList()).validate() }
+    }
+
+    @Test fun `payment due ordering is independent of service followups`() {
+        val original = sample()
+        val first = original.visits.single().copy(applianceId = null, nextDueDay = null, paymentDueDay = 20_000)
+        val second = first.copy(id = UUID.randomUUID().toString(), paymentDueDay = null, nextDueDay = 20_001)
+        val paid = first.copy(id = UUID.randomUUID().toString(), paymentDueDay = 19_999)
+        val data = original.copy(visits = listOf(second, paid, first), payments = listOf(payment(paid, paid.amountPaise)))
+        data.validate()
+        assertEquals(listOf(first.id, second.id), data.pendingVisits().map { it.id })
+        assertEquals(listOf(second.id), data.directFollowUps(20_001).map { it.id })
+        assertEquals(first.amountPaise + second.amountPaise, data.balance(first.customerId).pending)
+    }
+
+    @Test fun `invalid payment dates methods and corrections are rejected`() {
+        val valid = payment(sample().visits.single())
+        for (invalid in listOf(valid.copy(paymentDay = null), valid.copy(method = "invalid"),
+            valid.copy(voidedAtMillis = valid.recordedAtMillis + 1), valid.copy(voidReason = "Not voided"))) {
+            assertThrows(IllegalArgumentException::class.java) { LedgerRules.validate(invalid) }
+        }
     }
 }

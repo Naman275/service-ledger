@@ -8,6 +8,8 @@ if (Test-Path "$root\.tools\android-sdk") {
     $env:ANDROID_HOME = "$root\.tools\android-sdk"
     $env:ANDROID_SDK_ROOT = $env:ANDROID_HOME
     $env:ANDROID_USER_HOME = "$root\.tools\android-user"
+} elseif (-not $env:ANDROID_HOME -and (Test-Path "$env:LOCALAPPDATA\Android\Sdk\platforms\android-36")) {
+    $env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"
 }
 Push-Location $root
 try {

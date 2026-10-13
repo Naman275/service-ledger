@@ -15,6 +15,7 @@ import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Text
@@ -95,13 +96,13 @@ internal fun CalendarInput(
 }
 
 @Composable
-internal fun PaymentSummary(total: Long, received: Long) {
+internal fun PaymentSummary(total: Long, received: Long, overdue: Boolean = false) {
     val pending = LedgerRules.pendingAmount(total, received)
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(stringResource(R.string.total_charge_value, formatMoney(total)))
         Text(stringResource(R.string.received_value, formatMoney(received)))
         Text(stringResource(R.string.pending_value, formatMoney(pending)),
-            color = if (pending > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+            color = if (pending > 0 && overdue) MaterialTheme.colorScheme.error else LocalContentColor.current,
             style = MaterialTheme.typography.titleMedium)
     }
 }
