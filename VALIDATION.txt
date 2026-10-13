@@ -1,5 +1,21 @@
 SERVICE LEDGER - VALIDATION RESULTS
 ===================================
+PLAY STORE ASSETS - 13 OCTOBER 2026
+----------------------------------
+PASS: Two focused LedgerWorkflowTest store-listing tests, 0 failures/errors.
+  Native-rendered phone screens use fictional records, real Compose UI and
+  API 35 at 504 x 896 dp / xxhdpi. Both light and dark captures passed.
+PASS: Icon 512 x 512, feature graphic 1024 x 500, six screenshots 1512 x 2688
+  (9:16). All eight images are opaque 24-bit PNGs, each below 1 MB.
+PASS: Visual inspection of artwork and all six phone captures.
+PASS: Play accepted the image uploads and saved the English listing as a draft.
+  Screenshot order: Home, Customers, Service, Pending payments, Receipts,
+  Dark Home. Short/full descriptions fit Play's 80/4000-character limits.
+  The AI-asset declaration is intentionally left for the owner. The listing
+  has NOT been submitted for review or published.
+No release app code, installed launcher icon or bundle changed. The full
+backend suite was not rerun for this test/artwork/documentation-only update.
+
 VERSION 0.3.1 - SIGNED PLAY CANDIDATE, 13 OCTOBER 2026
 ----------------------------------------------------
 PASS: Full :app:testDebugUnitTest - 74 tests, 0 failures/errors/skipped.

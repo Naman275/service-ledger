@@ -20,6 +20,11 @@ import android.content.Intent
 import java.io.File
 import androidx.lifecycle.ViewModelProvider
 import dev.serviceledger.data.LedgerSnapshot
+import dev.serviceledger.data.Customer
+import dev.serviceledger.data.ServiceVisit
+import dev.serviceledger.data.Payment
+import java.time.LocalDate
+import java.util.UUID
 import dev.serviceledger.ui.formatMoney
 import org.junit.Before
 import org.junit.Rule
@@ -84,6 +89,67 @@ class LedgerWorkflowTest {
             assertEquals("https://naman275.github.io/service-ledger/", intent.dataString)
             assertEquals("dev.serviceledger.app.debug", compose.activity.packageName)
         }
+    }
+
+    private fun loadStoreDemo() {
+        val today = LocalDate.now().toEpochDay()
+        val customers = listOf("Asha Mehta", "Dev Patel", "Neha Rao").map {
+            Customer(UUID.randomUUID().toString(), it, "", "")
+        }
+        val services = listOf(
+            ServiceVisit(UUID.randomUUID().toString(), customers[0].id, null, today,
+                "AC maintenance", "", 180_000, today + 90, paymentDueDay = today + 2),
+            ServiceVisit(UUID.randomUUID().toString(), customers[1].id, null, today - 3,
+                "Water purifier service", "", 150_000, today + 60, paymentDueDay = today - 1),
+            ServiceVisit(UUID.randomUUID().toString(), customers[2].id, null, today - 5,
+                "Washing machine repair", "", 90_000, null),
+        )
+        val payments = listOf(
+            Payment(UUID.randomUUID().toString(), services[0].id, 100_000, today, "UPI",
+                notes = "Advance received", recordedAtMillis = today * 86_400_000),
+            Payment(UUID.randomUUID().toString(), services[2].id, 90_000, today - 5, "CASH",
+                notes = "Paid in full", recordedAtMillis = (today - 5) * 86_400_000),
+        )
+        val vm = compose.runOnIdle { ViewModelProvider(compose.activity)[LedgerViewModel::class.java] }
+        compose.runOnIdle {
+            vm.mutate("Demo loaded.") { restore(LedgerSnapshot(customers = customers, visits = services, payments = payments)) }
+        }
+        compose.waitUntil(15_000) {
+            compose.onAllNodesWithText(formatMoney(230_000)).fetchSemanticsNodes().isNotEmpty() && !vm.busy
+        }
+        compose.mainClock.advanceTimeBy(5_000)
+        compose.runOnIdle {
+            assertEquals(1512, compose.activity.window.decorView.width)
+            assertEquals(2688, compose.activity.window.decorView.height)
+        }
+    }
+
+    @Test
+    @Config(qualifiers = "w504dp-h896dp-xxhdpi")
+    fun `store listing screenshots`() {
+        loadStoreDemo()
+        capture("01-home")
+        button("Customers").performClick()
+        compose.onNodeWithText("Asha Mehta").assertIsDisplayed()
+        capture("02-customers")
+        compose.onNodeWithText("Asha Mehta").performClick()
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("AC maintenance"))
+        compose.onNodeWithText("AC maintenance").performClick()
+        compose.onNodeWithText("Part paid").assertIsDisplayed()
+        capture("03-service")
+        button("Payments").performClick()
+        compose.onNodeWithText("Water purifier service").assertIsDisplayed()
+        capture("04-payments")
+        button("History").performClick()
+        compose.onNodeWithText("Advance received").performScrollTo().assertIsDisplayed()
+        capture("05-receipts")
+    }
+
+    @Test
+    @Config(qualifiers = "w504dp-h896dp-night-xxhdpi")
+    fun `store listing dark screenshot`() {
+        loadStoreDemo()
+        capture("06-home-dark")
     }
 
     private fun exercisePayments(suffix: String) {

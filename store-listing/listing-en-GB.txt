@@ -1,0 +1,47 @@
+APP NAME
+Service Ledger
+
+SHORT DESCRIPTION
+Track customers, services and payments offline, with WhatsApp payment reminders
+
+FULL DESCRIPTION
+Keep your service work and payment records together in one simple, offline ledger.
+Service Ledger helps independent service providers record customers, track work
+and see what is still to collect. No account or sign-in is needed.
+
+CUSTOMERS AND SERVICES
+Add customers and record services directly against them. Link an appliance when
+it is useful, add an optional photo, and keep service charges, dates, parts and
+follow-ups with the job.
+
+A CLEAR PAYMENT HISTORY
+Record individual payments against a service, including partial payments.
+Choose cash, UPI, bank transfer, card or another method. See total charges,
+receipts and outstanding balances across your ledger and for each customer.
+Correct an incorrect payment by voiding it with a reason while keeping its
+history visible.
+
+PAYMENT REMINDERS YOU CONTROL
+Find pending and overdue payments, preview a reminder, then open WhatsApp or
+WhatsApp Business to send it yourself. WhatsApp must be installed, and recipient
+numbers must include an international country code. Messages are not sent
+automatically, and the app does not track delivery.
+
+YOUR RECORDS STAY ON YOUR DEVICE
+Use the ledger without an internet connection. There are no ads or analytics.
+Export a password-encrypted backup and restore it when needed. Keep an
+off-device backup and its password safe: there is no automatic cloud sync or
+password recovery. Restoring replaces the destination ledger.
+
+DESIGNED FOR EVERYDAY WORK
+Distinct service, balance and receipt cards help separate the information.
+Light and dark themes, customer search, payment history and optional service
+follow-up notifications keep your records easy to find.
+
+Amounts are recorded in Indian rupees (INR). Service Ledger records payments
+for bookkeeping; it does not collect money, connect to bank accounts or process
+UPI/card transactions. WhatsApp is a separate service and needs connectivity
+to send messages. Service Ledger is not affiliated with WhatsApp or Meta.
+
+Privacy policy: https://naman275.github.io/service-ledger/
+Support: rudratheternity@gmail.com

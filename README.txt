@@ -271,6 +271,11 @@ Status on 13 October 2026:
   "com.namansingla.serviceledger (unreviewed)".
 - The privacy policy is live on GitHub Pages and linked in the app. Its URL is
   saved in Play Console; the store-listing change still needs review.
+- Store artwork, six phone screenshots and English listing copy are in
+  store-listing/. They are uploaded and saved as a Play listing draft.
+  The owner chose to complete the AI-asset declaration manually; these listing
+  changes have not been submitted for review. See store-listing/README.txt
+  for screenshot provenance and regeneration commands.
 - Public release requires completing the store listing and app-content
   declarations, running a closed test with at least 12 opted-in testers for
   14 continuous days, and obtaining production access. Internal testing does
